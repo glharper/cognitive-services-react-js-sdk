@@ -269,11 +269,9 @@ class SpeechTable extends Component {
   updateRegion = value => this.setState({ region: value });
 
   startRecognition = () => {
-    this.setState({ recognizing: true });
-    //hook speech recognition in here
     this.reco = getRecognizer(this.state.subscriptionKey, this.state.region, this.state.language);
     if(this.reco !== undefined && this.reco !== null) {
-      this.setState({results: "", events: ""});
+      this.setState({results: "", events: "", recognizing: true});
 
       setRecognizerCallbacks(this.reco, this);
       recognizeWith(this.reco, this);
