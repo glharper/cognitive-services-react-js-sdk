@@ -2,8 +2,6 @@ import { Component } from 'react';
 import './App.css';
 import { AudioConfig, CancellationDetails, CancellationReason, NoMatchDetails, NoMatchReason, ResultReason, SpeechConfig, SpeechRecognizer } from 'microsoft-cognitiveservices-speech-sdk';
 
-const cr = '\n';
-
 const ResultForm = ({title, text, style}) => {
     return (
         <tr>
@@ -150,9 +148,9 @@ const getRecognizer = (key, region, language) => {
 };
 
 const setRecognizerCallbacks = (reco, componentRef) => {
-  reco.recognizing = function (s, e) {
+  reco.recognizing = (s, e) => {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + "(recognizing) Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr, results: e.result.text}));
+    componentRef.setState((state) => ({ events: `${state.events} (recognizing) Reason: ${ResultReason[e.result.reason]} Text: ${e.result.text}\n`, results: e.result.text}));
   };
   // The event signals that the service has stopped processing speech.
   // https://docs.microsoft.com/javascript/api/microsoft-cognitiveservices-speech-sdk/speechrecognitioncanceledeventargs?view=azure-node-latest
@@ -161,55 +159,55 @@ const setRecognizerCallbacks = (reco, componentRef) => {
   //    In this case the .errorDetails property will contain a textual representation of the error.
   // 2. No additional audio is available.
   //    Caused by the input stream being closed or reaching the end of an audio file.
-  reco.canceled = function (s, e) {
+  reco.canceled = (s, e) => {
       window.console.log(e);
 
-      let eventText = "(cancel) Reason: " + CancellationReason[e.reason];
+      let eventText = `(cancel) Reason: ${CancellationReason[e.reason]}`;
       if (e.reason === CancellationReason.Error) {
-        eventText += ": " + e.errorDetails;
+        eventText += `: ${e.errorDetails}`;
       }
-      componentRef.setState((state) => ({ events: state.events + eventText + cr }));
+      componentRef.setState((state) => ({ events: `${state.events}${eventText}\n` }));
   };
 
   // The event recognized signals that a final recognition result is received.
   // This is the final event that a phrase has been recognized.
   // For continuous recognition, you will get one recognized event for each phrase recognized.
-  reco.recognized = function (s, e) {
+  reco.recognized = (s, e) => {
       window.console.log(e);
 
       // Indicates that recognizable speech was not detected, and that recognition is done.
-      let eventText = "";
+      let eventText = `(recognized)  Reason: ${ResultReason[e.result.reason]}`;
       if (e.result.reason === ResultReason.NoMatch) {
         var noMatchDetail = NoMatchDetails.fromResult(e.result);
-        eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " NoMatchReason: " + NoMatchReason[noMatchDetail.reason] + cr;
+        eventText += ` NoMatchReason: ${NoMatchReason[noMatchDetail.reason]}\n`;
       } else {
-        eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr;
+        eventText += ` Text: ${e.result.text}\n`;
       }
-      componentRef.setState((state) => ({ events: state.events + eventText + cr }));
+      componentRef.setState((state) => ({ events: `${state.events}${eventText}\n` }));
   };
 
   // Signals that a new session has started with the speech service
-  reco.sessionStarted = function (s, e) {
+  reco.sessionStarted = (s, e) => {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr }));
+    componentRef.setState((state) => ({ events: `${state.events}(sessionStarted) SessionId: ${e.sessionId}\n`}));
   };
 
   // Signals the end of a session with the speech service.
-  reco.sessionStopped = function (s, e) {
+  reco.sessionStopped = (s, e) => {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + `(sessionStopped) SessionId: ${e.sessionId}` + cr }));
+    componentRef.setState((state) => ({ events: `${state.events}(sessionStopped) SessionId: ${e.sessionId}\n`}));
   };
 
   // Signals that the speech service has started to detect speech.
-  reco.speechStartDetected = function (s, e) {
+  reco.speechStartDetected = (s, e) => {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + `(speechStartDetected) SessionId: ${e.sessionId}` + cr }));
+    componentRef.setState((state) => ({ events: `${state.events}(speechStartDetected) SessionId: ${e.sessionId}\n`}));
   };
 
   // Signals that the speech service has detected that speech has stopped.
-  reco.speechEndDetected = function (s, e) {
+  reco.speechEndDetected = (s, e) => {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + `(speechEndDetected) SessionId: ${e.sessionId}` + cr }));
+    componentRef.setState((state) => ({ events: `${state.events}(speechEndDetected) SessionId: ${e.sessionId}\n`}));
   };
 };
 
@@ -218,32 +216,32 @@ const recognizeWith = (reco, componentRef) => {
   // The continuation below shows how to get the same data from the final result as you'd get from the
   // events above.
   reco.recognizeOnceAsync(
-    function (result) {
+    (result) => {
         window.console.log(result);
 
-        let eventText = "(continuation) Reason: " + ResultReason[result.reason];
+        let eventText = `(continuation) Reason: ${ResultReason[result.reason]}`;
         switch (result.reason) {
           case ResultReason.RecognizedSpeech:
-            eventText += " Text: " + result.text;
+            eventText += ` Text: ${result.text}`;
             break;
           case ResultReason.NoMatch:
             var noMatchDetail = NoMatchDetails.fromResult(result);
-            eventText += " NoMatchReason: " + NoMatchReason[noMatchDetail.reason];
+            eventText += ` NoMatchReason: ${NoMatchReason[noMatchDetail.reason]}`;
             break;
           case ResultReason.Canceled:
             var cancelDetails = CancellationDetails.fromResult(result);
-            eventText += " CancellationReason: " + CancellationReason[cancelDetails.reason];
+            eventText += ` CancellationReason: ${CancellationReason[cancelDetails.reason]}`;
             if (cancelDetails.reason === CancellationReason.Error) {
-              eventText += ": " + cancelDetails.errorDetails;
+              eventText += `: ${cancelDetails.errorDetails}`;
             }
             break;
           default:
             break;
         }
-        componentRef.setState((state) => ({ events: state.events + eventText + cr, results: result.text + cr, recognizing: false }));
+        componentRef.setState((state) => ({ events: `${state.events}${eventText}\n`, results: `${result.text}\n`, recognizing: false }));
     },
-    function (err) {
-      componentRef.setState({ results: "ERROR: " + err, recognizing: false });
+    (err) => {
+      componentRef.setState({ results: `ERROR: ${err}`, recognizing: false });
     });
 };
 
