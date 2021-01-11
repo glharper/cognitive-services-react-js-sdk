@@ -1,6 +1,8 @@
-import { Component, useState } from 'react';
+import { Component } from 'react';
 import './App.css';
 import { AudioConfig, CancellationDetails, CancellationReason, NoMatchDetails, NoMatchReason, ResultReason, SpeechConfig, SpeechRecognizer } from 'microsoft-cognitiveservices-speech-sdk';
+
+const cr = '\n';
 
 const ResultForm = ({title, text, style}) => {
     return (
@@ -147,6 +149,112 @@ const getRecognizer = (key, region, language) => {
   return new SpeechRecognizer(speechConfig, audioConfig);
 };
 
+const setRecognizerCallbacks = (reco, componentRef) => {
+  reco.recognizing = function (s, e) {
+    window.console.log(e);
+    componentRef.setState((state) => ({ events: state.events + "(recognizing Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr, results: e.result.text}));
+  };
+  // The event signals that the service has stopped processing speech.
+  // https://docs.microsoft.com/javascript/api/microsoft-cognitiveservices-speech-sdk/speechrecognitioncanceledeventargs?view=azure-node-latest
+  // This can happen for two broad classes or reasons.
+  // 1. An error is encountered.
+  //    In this case the .errorDetails property will contain a textual representation of the error.
+  // 2. No additional audio is available.
+  //    Caused by the input stream being closed or reaching the end of an audio file.
+  reco.canceled = function (s, e) {
+      window.console.log(e);
+
+      let eventText = "(cancel) Reason: " + CancellationReason[e.reason];
+      if (e.reason === CancellationReason.Error) {
+        eventText += ": " + e.errorDetails;
+      }
+      // update({ events: state.events + eventText + cr });
+      componentRef.setState((state) => ({ events: state.events + eventText + cr }));
+  };
+
+  // The event recognized signals that a final recognition result is received.
+  // This is the final event that a phrase has been recognized.
+  // For continuous recognition, you will get one recognized event for each phrase recognized.
+  reco.recognized = function (s, e) {
+      window.console.log(e);
+
+      // Indicates that recognizable speech was not detected, and that recognition is done.
+      let eventText = "";
+      if (e.result.reason === ResultReason.NoMatch) {
+        var noMatchDetail = NoMatchDetails.fromResult(e.result);
+        eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " NoMatchReason: " + NoMatchReason[noMatchDetail.reason] + cr;
+      } else {
+        eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr;
+      }
+      // update({ events: state.events + eventText + cr });
+      componentRef.setState((state) => ({ events: state.events + eventText + cr }));
+  };
+
+  // Signals that a new session has started with the speech service
+  reco.sessionStarted = function (s, e) {
+    window.console.log(e);
+    // update({ events: state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr });
+    componentRef.setState((state) => ({ events: state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr }));
+  };
+
+  // Signals the end of a session with the speech service.
+  reco.sessionStopped = function (s, e) {
+    window.console.log(e);
+    // update({ recognizing: false, events: state.events + "(sessionStopped) SessionId: " + e.sessionId + cr });
+    componentRef.setState((state) => ({ events: state.events + `(sessionStopped) SessionId: ${e.sessionId}` + cr }));
+  };
+
+  // Signals that the speech service has started to detect speech.
+  reco.speechStartDetected = function (s, e) {
+    window.console.log(e);
+    // update({ events: state.events + "(speechStartDetected) SessionId: " + e.sessionId + cr });
+    componentRef.setState((state) => ({ events: state.events + `(speechStartDetected) SessionId: ${e.sessionId}` + cr }));
+  };
+
+  // Signals that the speech service has detected that speech has stopped.
+  reco.speechEndDetected = function (s, e) {
+    window.console.log(e);
+    // update({ events: state.events + "(speechEndDetected) SessionId: " + e.sessionId + cr });
+    componentRef.setState((state) => ({ events: state.events + `(speechEndDetected) SessionId: ${e.sessionId}` + cr }));
+  };
+};
+
+const recognizeWith = (reco, componentRef) => {
+  // Note: this is how you can process the result directly
+  //       rather then subscribing to the recognized
+  //       event
+  // The continuation below shows how to get the same data from the final result as you'd get from the
+  // events above.
+  reco.recognizeOnceAsync(
+    function (result) {
+        window.console.log(result);
+
+        let eventText = "(continuation) Reason: " + ResultReason[result.reason];
+        switch (result.reason) {
+          case ResultReason.RecognizedSpeech:
+            eventText += " Text: " + result.text;
+            break;
+          case ResultReason.NoMatch:
+            var noMatchDetail = NoMatchDetails.fromResult(result);
+            eventText += " NoMatchReason: " + NoMatchReason[noMatchDetail.reason];
+            break;
+          case ResultReason.Canceled:
+            var cancelDetails = CancellationDetails.fromResult(result);
+            eventText += " CancellationReason: " + CancellationReason[cancelDetails.reason];
+            if (cancelDetails.reason === CancellationReason.Error) {
+              eventText += ": " + cancelDetails.errorDetails;
+            }
+            break;
+          default:
+            break;
+        }
+        componentRef.setState((state) => ({ events: state.events + eventText + cr, results: result.text + cr, recognizing: false }));
+    },
+    function (err) {
+      componentRef.setState({ results: "ERROR: " + err, recognizing: false });
+    });
+};
+
 class SpeechTable extends Component {
   constructor(props) {
     super(props);
@@ -165,108 +273,10 @@ class SpeechTable extends Component {
     //hook speech recognition in here
     this.reco = getRecognizer(this.state.subscriptionKey, this.state.region, this.state.language);
     if(this.reco !== undefined && this.reco !== null) {
-      const cr = '\n';
-      const t = this;
-      const update = (obj) => t.setState(obj);
       this.setState({results: "", events: ""});
 
-      this.reco.recognizing = function (s, e) {
-        window.console.log(e);
-        update({ events: t.state.events + "(recognizing Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr, results: e.result.text});
-      };
-
-      // The event signals that the service has stopped processing speech.
-      // https://docs.microsoft.com/javascript/api/microsoft-cognitiveservices-speech-sdk/speechrecognitioncanceledeventargs?view=azure-node-latest
-      // This can happen for two broad classes or reasons.
-      // 1. An error is encountered.
-      //    In this case the .errorDetails property will contain a textual representation of the error.
-      // 2. No additional audio is available.
-      //    Caused by the input stream being closed or reaching the end of an audio file.
-      this.reco.canceled = function (s, e) {
-          window.console.log(e);
-
-          let eventText = t.state.events + "(cancel) Reason: " + CancellationReason[e.reason];
-          if (e.reason === CancellationReason.Error) {
-            eventText += ": " + e.errorDetails;
-          }
-          update({ events: eventText + cr });
-      };
-
-      // The event recognized signals that a final recognition result is received.
-      // This is the final event that a phrase has been recognized.
-      // For continuous recognition, you will get one recognized event for each phrase recognized.
-      this.reco.recognized = function (s, e) {
-          window.console.log(e);
-
-          // Indicates that recognizable speech was not detected, and that recognition is done.
-          let eventText = t.state.events;
-          if (e.result.reason === ResultReason.NoMatch) {
-            var noMatchDetail = NoMatchDetails.fromResult(e.result);
-            eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " NoMatchReason: " + NoMatchReason[noMatchDetail.reason] + cr;
-          } else {
-            eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr;
-          }
-          update({ events: eventText + cr });
-      };
-
-      // Signals that a new session has started with the speech service
-      this.reco.sessionStarted = function (s, e) {
-        window.console.log(e);
-        update({ events: t.state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr });
-      };
-
-      // Signals the end of a session with the speech service.
-      this.reco.sessionStopped = function (s, e) {
-        window.console.log(e);
-        update({ recognizing: false, events: t.state.events + "(sessionStopped) SessionId: " + e.sessionId + cr });
-      };
-
-      // Signals that the speech service has started to detect speech.
-      this.reco.speechStartDetected = function (s, e) {
-        window.console.log(e);
-        update({ events:t.state.events + "(speechStartDetected) SessionId: " + e.sessionId + cr });
-      };
-
-      // Signals that the speech service has detected that speech has stopped.
-      this.reco.speechEndDetected = function (s, e) {
-        window.console.log(e);
-        update({ events:t.state.events + "(speechEndDetected) SessionId: " + e.sessionId + cr });
-      };
-
-      // Note: this is how you can process the result directly
-      //       rather then subscribing to the recognized
-      //       event
-      // The continuation below shows how to get the same data from the final result as you'd get from the
-      // events above.
-      this.reco.recognizeOnceAsync(
-        function (result) {
-            window.console.log(result);
-
-            let eventText = t.state.events + "(continuation) Reason: " + ResultReason[result.reason];
-            switch (result.reason) {
-              case ResultReason.RecognizedSpeech:
-                eventText += " Text: " + result.text;
-                break;
-              case ResultReason.NoMatch:
-                var noMatchDetail = NoMatchDetails.fromResult(result);
-                eventText += " NoMatchReason: " + NoMatchReason[noMatchDetail.reason];
-                break;
-              case ResultReason.Canceled:
-                var cancelDetails = CancellationDetails.fromResult(result);
-                eventText += " CancellationReason: " + CancellationReason[cancelDetails.reason];
-                if (cancelDetails.reason === CancellationReason.Error) {
-                  eventText += ": " + cancelDetails.errorDetails;
-                }
-                break;
-              default:
-                break;
-            }
-            update({ events: eventText + cr, results: result.text + cr, recognizing: false });
-        },
-        function (err) {
-          update({ results: "ERROR: " + err, recognizing: false });
-        });
-
+      setRecognizerCallbacks(this.reco, this);
+      recognizeWith(this.reco, this);
     }
   };
 
@@ -288,18 +298,20 @@ class SpeechTable extends Component {
   render () {
     return (
       <table>
-        <Title />
-        <KeyForm value={this.state.subscriptionKey} onChange={this.updateKey} />
-        <SelectForm title={"Language"} value={this.state.language} onSelect={this.updateLanguage}>
-          <LanguageOptions />
-        </SelectForm>
-        <SelectForm title={"Region"} value={this.state.region} onSelect={this.updateRegion}>
-          <RegionOptions />
-        </SelectForm>
-        <RecognitionButtons recognizing={this.state.recognizing} onStart={this.startRecognition} onStop={this.endRecognition}/>
-        
-        <ResultForm title="Results:" text={this.state.results} style={this.resultStyle}/>
-        <ResultForm title="Events:" text={this.state.events} style={this.eventStyle}/>
+        <tbody>
+          <Title />
+          <KeyForm value={this.state.subscriptionKey} onChange={this.updateKey} />
+          <SelectForm title={"Language"} value={this.state.language} onSelect={this.updateLanguage}>
+            <LanguageOptions />
+          </SelectForm>
+          <SelectForm title={"Region"} value={this.state.region} onSelect={this.updateRegion}>
+            <RegionOptions />
+          </SelectForm>
+          <RecognitionButtons recognizing={this.state.recognizing} onStart={this.startRecognition} onStop={this.endRecognition}/>
+          
+          <ResultForm title="Results:" text={this.state.results} style={this.resultStyle}/>
+          <ResultForm title="Events:" text={this.state.events} style={this.eventStyle}/>
+        </tbody>
       </table>
     );
   }
