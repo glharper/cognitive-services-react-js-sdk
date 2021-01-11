@@ -152,7 +152,7 @@ const getRecognizer = (key, region, language) => {
 const setRecognizerCallbacks = (reco, componentRef) => {
   reco.recognizing = function (s, e) {
     window.console.log(e);
-    componentRef.setState((state) => ({ events: state.events + "(recognizing Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr, results: e.result.text}));
+    componentRef.setState((state) => ({ events: state.events + "(recognizing) Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr, results: e.result.text}));
   };
   // The event signals that the service has stopped processing speech.
   // https://docs.microsoft.com/javascript/api/microsoft-cognitiveservices-speech-sdk/speechrecognitioncanceledeventargs?view=azure-node-latest
@@ -168,7 +168,6 @@ const setRecognizerCallbacks = (reco, componentRef) => {
       if (e.reason === CancellationReason.Error) {
         eventText += ": " + e.errorDetails;
       }
-      // update({ events: state.events + eventText + cr });
       componentRef.setState((state) => ({ events: state.events + eventText + cr }));
   };
 
@@ -186,43 +185,36 @@ const setRecognizerCallbacks = (reco, componentRef) => {
       } else {
         eventText += "(recognized)  Reason: " + ResultReason[e.result.reason] + " Text: " + e.result.text + cr;
       }
-      // update({ events: state.events + eventText + cr });
       componentRef.setState((state) => ({ events: state.events + eventText + cr }));
   };
 
   // Signals that a new session has started with the speech service
   reco.sessionStarted = function (s, e) {
     window.console.log(e);
-    // update({ events: state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr });
     componentRef.setState((state) => ({ events: state.events + `(sessionStarted) SessionId: ${e.sessionId}` + cr }));
   };
 
   // Signals the end of a session with the speech service.
   reco.sessionStopped = function (s, e) {
     window.console.log(e);
-    // update({ recognizing: false, events: state.events + "(sessionStopped) SessionId: " + e.sessionId + cr });
     componentRef.setState((state) => ({ events: state.events + `(sessionStopped) SessionId: ${e.sessionId}` + cr }));
   };
 
   // Signals that the speech service has started to detect speech.
   reco.speechStartDetected = function (s, e) {
     window.console.log(e);
-    // update({ events: state.events + "(speechStartDetected) SessionId: " + e.sessionId + cr });
     componentRef.setState((state) => ({ events: state.events + `(speechStartDetected) SessionId: ${e.sessionId}` + cr }));
   };
 
   // Signals that the speech service has detected that speech has stopped.
   reco.speechEndDetected = function (s, e) {
     window.console.log(e);
-    // update({ events: state.events + "(speechEndDetected) SessionId: " + e.sessionId + cr });
     componentRef.setState((state) => ({ events: state.events + `(speechEndDetected) SessionId: ${e.sessionId}` + cr }));
   };
 };
 
 const recognizeWith = (reco, componentRef) => {
-  // Note: this is how you can process the result directly
-  //       rather then subscribing to the recognized
-  //       event
+  // Note: this is how to process the result directly rather than subscribing to the recognized event
   // The continuation below shows how to get the same data from the final result as you'd get from the
   // events above.
   reco.recognizeOnceAsync(
